@@ -844,18 +844,29 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
 if __name__ == '__main__':
     # run a sample analysis 
     import numpy as np
-    from multivarious.utl import StableNamespace
 
     # example of running the analysis function ... 
-    cts = StableNamespace(
-        g=9.81, M=1.0, E=2.0e8, Sy=250.0e3, k=0.05,
-        wBlk=0.4, hBlk=1.2,
-        PGA=3.5, fg=1.5, zg=0.9, aa=4.0, tau=2.0,
-        phi_C=1.0, phi_D=1.0, 
-        randomize_demands = True, 
-        seed = None, 
-        anim = 2,
-    )
+    cts = default_constants()
+    # override demo values (keep full StableNamespace from default_constants)
+    cts.g = 9.81
+    cts.M = 1.0
+    cts.E = 2.0e8
+    cts.Sy = 250.0e3
+    cts.k = 0.05
+    cts.wBlk = 0.4
+    cts.hBlk = 1.2
+    cts.PGA = 3.5
+    cts.fg = 1.5
+    cts.zg = 0.9
+    cts.aa = 4.0
+    cts.tau = 2.0
+    cts.phi_C = 1.0
+    cts.phi_D = 1.0
+    cts.randomize_demands = True
+    cts.seed = None
+    cts.anim = 2
+    cts.l = 0.5 * np.sqrt(cts.wBlk**2 + cts.hBlk**2)
+    cts.alpha = np.arctan(cts.wBlk / cts.hBlk)
     # design variables K (kN/m), Fult (kN), H (m)
     v = np.array([  500.0,     20.0,       3.0 ])  
     cost, constraints = analysis(v, cts)
