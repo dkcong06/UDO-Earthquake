@@ -1,0 +1,52 @@
+Optimization Results - Quake Project 2.A
+=========================================
+Date: 2026-04-15
+
+Final Design Variables
+-----------------------
+K    = 145.0  kN/m    (column stiffness)
+Fult =  28.0  kN      (column ultimate strength)
+H    =   4.72 m       (column height)
+
+Derived Quantities
+-------------------
+Dep       = 0.19310 m     (elastic-plastic displacement, Fult/K)
+depth (d) = 0.10960 m     (column cross-section depth)
+width (b) = 0.05790 m     (column cross-section width)
+Tn        = 1.6500  s     (natural period, 2*pi*sqrt(M/K))
+
+Steel volume (b*d*H) = 0.02996 cu.m
+
+Dimensionless Ratios
+---------------------
+Fult/(Mg) = 0.2854        (strength-to-weight ratio)
+Dep/H     = 0.04091       (elastic displacement / height)
+Tn*fg     = 2.4751        (natural period * ground frequency)
+
+Safety Analysis (1000 simulations, two independent runs)
+---------------------------------------------------------
+Run 1:  P[Collapse] = 0.0040  (0.40%)    P[Toppling] = 0.0030  (0.30%)
+Run 2:  P[Collapse] = 0.0050  (0.50%)    P[Toppling] = 0.0020  (0.20%)
+
+Both runs satisfy P[C] <= 0.01 and P[T] <= 0.01.
+
+Final Design Table
+-------------------
+K       Fult    H      bhH       Dep      Tn     Fult/(Mg)  Dep/H    Tn*fg   P[C]    P[T]
+kN/m    kN      m      m^3       m        s                                    
+145.0   28.0    4.72   0.02996   0.1931   1.650  0.2854     0.0409   2.475   ~0.5%   ~0.3%
+
+Optimization Strategy
+----------------------
+Optimizer: ORS (Optimized Random Search) from multivarious.opt
+Risk measure: 84th percentile of sample average (eq. 28)
+phi_D = 2.25 (demand safety factor during optimization)
+phi_D = 1.0 (during uncertainty analysis)
+
+The optimization was seeded from an initial NMS run (phi_D=1.5) which found
+K=339, Fult=22.6, H=3.48. ORS with phi_D=2.25 then found K=144, Fult=24.8,
+H=4.72. Manual refinement of K and Fult around this neighborhood yielded the
+final design of K=145, Fult=28, H=4.72.
+
+Options used: [2, 0.10, 0.1, 0.01, 2000, 1.0, 2.0, 50, 0.20]
+Bounds:  v_lb = [50, 5, 3]  v_ub = [2000, 100, 10]

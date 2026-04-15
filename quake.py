@@ -2,8 +2,8 @@
 """
 quake.py
 
-A Python moddule to analyze, animate, optimixe, and assess 
-the response of an inelastic building and its contents to seismic shaking. 
+A Python moddule to analyze, plot, animate, optimize, and assess
+the response of an inelastic building and its contents to seismic shaking.
 
 Typical usage
 -------------
@@ -13,17 +13,17 @@ Typical usage
 
     cost, constraints = quake.analysis( v, cts )
 
-    # design variables (v) 
+    # design variables (v)
     v = np.array([500.0, 25.0, 3.0])   # K (kN/m), Fult (kN), H (m)
 
-    # analysis constants (cts) 
+    # analysis constants (cts)
     cts = StableNamespace(
           g=9.81, M=1.0, E=2e8, Sy=250e3, k=0.05,
           wBlk=0.4, hBlk=1.2, PGA=3.5,
           fg=1.5, zg=0.9, aa=4.0, tau=2.0,
-          phi_C = 1.0, phi_D = 1.0, 
+          phi_C = 1.0, phi_D = 1.0,
           t=np.arange(3000)*0.01,
-          anim=1,
+          plots=1,
     )
 
 H.P. Gavin, Dept. Civil and Environ. Eng'g, Duke Univ.
@@ -76,8 +76,8 @@ def default_constants():
         PGA   =   3.5,     # peak ground acceleration, m/sq.m
         fg    =   1.5,     # ground motion frequency, Hz
         zg    =   0.9,     # ground motion damping ratio
-        aa    =   4.0,     # earthquake envelope rise-time exponent  (eqgm_1d: aa) 
-        tau   =   2.0,     # earthquake envelope decay time, s       (eqgm_1d: ta) 
+        aa    =   4.0,     # earthquake envelope rise-time exponent  (eqgm_1d: aa)
+        tau   =   2.0,     # earthquake envelope decay time, s       (eqgm_1d: ta)
         phi_C =   1.0,     # capacity safety factor
         phi_D =   1.0,     #  demand  safety factor
         Dep   =   0.1,     # elastic-plastic displacement, m  
@@ -88,17 +88,18 @@ def default_constants():
         v     =   None,    # array of design variables, updated later
         randomize_demands = True, # randomize PGA and ta in each earthquake
         seed  =   None,    # random number generator seed
-        anim  =   2,       # 1: draw animation, 0: no animation
+        plots =   2,       # 2: animation, 1: plots, 0: no plots or animation
+        fig_num = 1000,    # base figure number
     )
     # ---- update derived constants within the StableNamespace cts
     cts.l     = 0.5 * np.sqrt(cts.wBlk**2 + cts.hBlk**2)   # corner-to-CG length, m
     cts.alpha = np.arctan(cts.wBlk / cts.hBlk)             # balance angle, rad
 
-    # time vector for earthquake ground motion 
+    # time vector for earthquake ground motion
     T    = 30.0                   # total time span, s
     dt   =  0.010                 # time step, s
     N    = int(np.floor(T / dt))  # number of time values
-    cts.t = np.arange(N) * dt     # include t into the analysis constants 
+    cts.t = np.arange(N) * dt     # include t into the analysis constants
 
     return cts
 
@@ -145,7 +146,7 @@ def system( t_i, x, u, cts ):
     c_blk = 1e7 / np.sqrt(cts.l * cts.g)  # block viscous damping, kN s/rad
     n     = 42                        # even exponent for toppled-block penalty
 
-    # extract the design variables from the constants 
+    # extract the design variables from the constants
     K    = cts.v[0]
     Fult = cts.v[1]
     H    = cts.v[2]
@@ -158,7 +159,7 @@ def system( t_i, x, u, cts ):
         return np.zeros(5), np.array([R])
 
     # translational acceleration of structure, m/s^2 ... eqn (11)
-    A = cts.g * D / H - R / cts.M - ag 
+    A = cts.g * D / H - R / cts.M - ag
 
     # Bouc-Wen hysteresis rate equation ... eqn (12)
     dzdt = (1.0 - z**2 * (0.5*np.sign(V*z) + 0.5)) * V / cts.Dep
@@ -216,7 +217,7 @@ def analysis( v, cts = default_constants() ):
           cts.aa     earthquake envelope rise-time parameter   (eqgm_1d: aa)
           cts.tau    earthquake envelope decay time constant, s (eqgm_1d: tau)
           cts.t      time vector for the ground motion, s
-          cts.anim   2: draw animation, 1: plots, 0 no animation
+          cts.plots   2: animation, 1: plots, 0 no plots or animation
 
     OUTPUTS
     -------
@@ -234,8 +235,8 @@ def analysis( v, cts = default_constants() ):
 
     # ---- inelastic beam-column section dimensions from design variables
     Dep   = Fult / K                        # elastic-to-plastic deflection, m
-    depth = 0.5 * H**2 * cts.Sy / cts.E * K / Fult  # cross section depth 
-    width = K / cts.E * (H / depth)**3              # cross section width 
+    depth = 0.5 * H**2 * cts.Sy / cts.E * K / Fult  # cross section depth
+    width = K / cts.E * (H / depth)**3              # cross section width
     c     = 0.02 * 2.0 * np.sqrt(cts.M * K)  # viscous damping rate, kN/(m/s)
 
     # ---- update derived constants computed from design variables in cts
@@ -245,13 +246,13 @@ def analysis( v, cts = default_constants() ):
     # ---- include the current values of the design variables v in constants cts
     cts.v = v
 
-    # ---- lognormal random samples for PGA and tau ----------------------- 
+    # ---- lognormal random samples for PGA and tau -----------------------
     PGA, tau = cts.PGA, cts.tau
-    if cts.randomize_demands: 
+    if cts.randomize_demands:
         PGA = lognormal.rnd(cts.phi_D * PGA, 0.30, 1, 1)
         tau = lognormal.rnd(            tau, 0.30, 1, 1)
 
-    # ---- use eqgm_1d to generate synthetic earthquake ground motion 
+    # ---- use eqgm_1d to generate synthetic earthquake ground motion
     ground_accel, ground_veloc, ground_displ, _, _, _, _  = eqgm_1d(
         PGA, cts.fg, cts.zg, cts.aa, tau, cts.t, fig_no=0, seed=cts.seed)
 
@@ -265,11 +266,11 @@ def analysis( v, cts = default_constants() ):
 
     R = y[0,:]                          # restoring force, kN,  shape (p,)
 
-    # ---- extract peak responses 
+    # ---- extract peak responses
     maxD = np.max(np.abs(x[0, :]))      # peak structure displacement, m
     maxd = np.max(np.abs(x[2, :]))      # peak block rotation, rad
 
-    # ---- compute design objective to be minimized 
+    # ---- compute design objective to be minimized
     objective = depth * width * H       # steel volume, m
 
     # ---- compute design constraints
@@ -280,9 +281,9 @@ def analysis( v, cts = default_constants() ):
     ])
 
     # ---- display animation
-    if cts.anim > 0:
+    if cts.plots > 0:
         speed = 2
-        animate( t, ground_displ, ground_accel, x, x_dot, R, v, cts, speed )
+        _plot_analysis( t, ground_displ, ground_accel, x, x_dot, R, v, cts, speed )
 
     return objective, constraints
 
@@ -293,32 +294,35 @@ def optimize( v_init, v_lb, v_ub, options, cts ):
     earthquake.
     Minimize steel volume subject to collapse and toppling constraints.
 
-    Solves:   min  f(K, Fult, H)       ... design objective 
-              s.t. g(K, Fult, H) <= 0  ... design constraints 
+    Solves:   min  f(K, Fult, H)       ... design objective
+              s.t. g(K, Fult, H) <= 0  ... design constraints
 
-    using the Nelder-Mead simplex optimizer (nms) from multivarious.opt.
+    using the Optimized Random Search optimizer (ors) from multivarious.opt.
 
     Parameters:
     ---- design variabls ------------------------------------------------------
     v_init   initial guess for [ stiffness, strength, height ]
-    v_lb     lower bound for [ stiffness, strength, height ] 
-    v_ub     upper bound for [ stiffness, strength, height ] 
+    v_lb     lower bound for [ stiffness, strength, height ]
+    v_ub     upper bound for [ stiffness, strength, height ]
 
     ---- analysis constants ---------------------------------------------------
     cts   StableNamespace of constants ... see the analysis function for details
     """
 
-    # ---- run the optimization 
-#   v_opt, f_opt, g_opt, cvg_hst, _, _ =  ... ... ... 
+    # ---- run the optimization
+    v_opt, f_opt, g_opt, cvg_hst, _, _ = ors(
+        analysis, v_init, v_lb, v_ub, options, cts
+    )
 
-    # ---- plot convergence history 
+    # ---- plot convergence history
+    format_plot(font_size=15, line_width=3, marker_size=7)
     plot_cvg_hst(cvg_hst, v_opt, options, save_plots=True)
 
     return v_opt, f_opt, g_opt
 
 
 # ----------------------------------------------------------------------------
-def uncertainty( v_opt, cts, n_sims=1000, re_analysis=True, fig_no=30 ):
+def uncertainty( v_opt, cts, n_sims=1000, re_analysis=True ):
     """ Monte Carlo uncertainty analysis of the inelastic SDOF earthquake response.
 
     Examines the safety of the system described by earthquake_analysis.py
@@ -338,10 +342,10 @@ def uncertainty( v_opt, cts, n_sims=1000, re_analysis=True, fig_no=30 ):
     #   timestamp = datetime.now ().strftime(â€™%Y%m%dT%H%M%Sâ€™)
     SAVE_FILE = 'quake-uncertainty.npz'
 
-    # ========================================================================= 
+    # =========================================================================
     if re_analysis:
 
-        # ---- lognormal random samples for PGA and tau ----------------------- 
+        # ---- lognormal random samples for PGA and tau -----------------------
         r = lognormal.rnd(
             mednX = np.array([cts.PGA, cts.tau]),
             covnX = np.array([0.30,   0.30]),
@@ -351,7 +355,7 @@ def uncertainty( v_opt, cts, n_sims=1000, re_analysis=True, fig_no=30 ):
         PGA_rand = r[0, :]       # sample of random PGA values (n_sims,)
         tau_rand = r[1, :]       # sample of random tau values (n_sims,)
 
-        # ---- Monte Carlo loop ----------------------------------------------- 
+        # ---- Monte Carlo loop -----------------------------------------------
         f = np.zeros(n_sims)            # cost at each simulation
         g = np.zeros((3, n_sims))       # constraints at each simulation and PGV
 
@@ -377,11 +381,11 @@ def uncertainty( v_opt, cts, n_sims=1000, re_analysis=True, fig_no=30 ):
                       f'  P_t: {(np.sum(g[1,0:sim]>0)/sim):5.3f}'
                 )
 
-        # ---- save results --------------------------------------------------- 
+        # ---- save results ---------------------------------------------------
         np.savez(SAVE_FILE, f=f, g=g, r=r)
         print(f'\nUncertainty analysis results saved to {SAVE_FILE}')
 
-    # ========================================================================= 
+    # =========================================================================
     # Load results (whether just computed or from a previous run)
 
     data     = np.load(SAVE_FILE)
@@ -392,26 +396,27 @@ def uncertainty( v_opt, cts, n_sims=1000, re_analysis=True, fig_no=30 ):
     tau_rand = r[1, :]
     PGV_rnd  = -g[2, :]                     # peak ground velocity
 
-    # ---- failure probabilities computed from constraint values 
+    # ---- failure probabilities computed from constraint values
     P_collapse = np.sum(g[0, :] > 0) / n_sims
     P_topple   = np.sum(g[1, :] > 0) / n_sims
 
     # ---- effective earthquake rise_time computed from system constant tau
     rise_time = cts.aa * tau_rand     # rise time s
     #   duration = 5.7 * cts.aa**0.42 * tau_rand     # s
-    # ========================================================================= 
-    # Plot histograms and scatter plots of constraints and random values   
+
+    # =========================================================================
+    # Plot histograms and scatter plots of constraints and random values  
     n_bins = max(10, int(np.floor(n_sims / 20)))
 
     r_idx = [ 0, 1 ]  # random values to plot
     g_idx = [ 0, 1 ]  # constraints to plot , collapse and topple
     InData = np.block([ [PGA_rand] , [PGV_rnd] , [rise_time] ])
 
-    # names for "input, X" values (r) and "output Y" values (g) 
+    # names for "input, X" values (r) and "output Y" values (g)
     xy_names = { 'X': [ 'PGA', 'PGV', 'rise time' ] ,
                  'Y': [ 'collapse', 'topple'] }
 
-    plot_scatter_hist( InData, g[g_idx,:], fig_no,
+    plot_scatter_hist( InData, g[g_idx,:], cts.fig_num,
                        var_names=xy_names, font_size=15, ci=0.90)
 
     return P_topple, P_collapse
@@ -420,10 +425,10 @@ def uncertainty( v_opt, cts, n_sims=1000, re_analysis=True, fig_no=30 ):
 # ----------------------------------------------------------------------------
 def search( variable_set, cts, re_analysis = True ):
     """ Gridded search across all combinations of design variables values
-    provided in the StableNamespace variable_set, and plotting the results 
-    as a set of 2D plots for variables K_set and F_set, one plot for each 
+    provided in the StableNamespace variable_set, and plotting the results
+    as a set of 2D plots for variables K_set and F_set, one plot for each
     value of H_set.  
-    cts is a StableNamespace containing all constants for this module. 
+    cts is a StableNamespace containing all constants for this module.
 
     returns None
     """
@@ -455,7 +460,7 @@ def search( variable_set, cts, re_analysis = True ):
         PGA_rand = lognormal.rnd(cts.PGA, 0.3, nQ)  # nQ PGA values
         tau_rand = lognormal.rnd(cts.tau, 0.3, nQ)  # nQ tau values
 
-        cts.anim = 0  # no plots
+        cts.plots = 0  # no plots
 
         counter = 0
         start_time = time.time()
@@ -501,11 +506,11 @@ def search( variable_set, cts, re_analysis = True ):
         data     = np.load(SAVE_FILE)
         Pf1_set  = data['Pf1_set']                      # Prob [ g1 > 0 ]
         Pf2_set  = data['Pf2_set']                      # Prob [ g2 > 0 ]
-        K_set    = data['K_set'].flatten()              # column stiffness 
+        K_set    = data['K_set'].flatten()              # column stiffness
         F_set    = data['F_set'].flatten()              # column strength
         H_set    = data['H_set'].flatten()              # column height
 
-    T_set = (2*np.pi)* np.sqrt(cts.M / K_set) 
+    T_set = (2*np.pi)* np.sqrt(cts.M / K_set)
     V_set = F_set / ( cts.M * cts.g )
 
     # Plotting
@@ -549,8 +554,8 @@ def search( variable_set, cts, re_analysis = True ):
 
 
 # ----------------------------------------------------------------------------
-def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
-    """ Animate the response of the inelastic SDOF + rocking block system.
+def _plot_analysis( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
+    """ Plot and animate the response of an inelastic SDOF rocking block system
 
     INPUTS
     ------
@@ -579,13 +584,13 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
 
     # ---- re-compute section dimensions for annotation
     # ---- inelastic beam-column section dimensions from design variables
-    Dep   = Fult / K  # elastic-plastic displacment 
+    Dep   = Fult / K  # elastic-plastic displacment
     depth = 0.5 * H**2 * cts.Sy / cts.E * K / Fult    # cross section depth, m
     width = K / cts.E * (H / depth)**3                # cross section width, m
 
     Tn    = 2.0 * np.pi * np.sqrt(cts.M / K)          # natural period, s
     # tipping acceleration, m/^2
-    A_tip    = cts.g * np.tan(cts.alpha) 
+    A_tip    = cts.g * np.tan(cts.alpha)
     # toppling acceleration, m/s^2
     A_top    = cts.g * cts.alpha * np.sqrt(1.0 + cts.l/cts.g*(2*np.pi/Tn)**2)
 
@@ -608,7 +613,7 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
     xBlk = cts.wBlk * np.array([-1, -1, 1,  1, -1]) / 2.0
     yBlk = cts.hBlk * np.array([ 0,  1, 1,  0,  0])
 
-    sc = 0.15 * cts.alpha   # text offset for labels of +/-alpha and +/-Dep 
+    sc = 0.15 * cts.alpha   # text offset for labels of +/-alpha and +/-Dep
 
     # ---- helper: box x-coords (half-width w centred at cx)
     def box_x(cx):
@@ -644,7 +649,7 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
     # Figure 1 - displacements & rotations
     # ================================================================
     T     = cts.t[-1]                          # duration of simulation to plot
-    fig1, ax1 = plt.subplots(num=1, clear=True, figsize=(10, 5))
+    fig1, ax1 = plt.subplots(num=cts.fig_num+1, clear=True, figsize=(10, 5))
     ax1.plot(t, dg,  '-g',         linewidth=3, label=rf'ground')
     ax1.plot(t, d_,  color=co,     linewidth=3, label=rf'block $\theta$, rad')
     ax1.plot(t, D_,  '-b',         linewidth=3, label=rf'structure $x$, m')
@@ -668,7 +673,7 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
     # ================================================================
     # Figure 2 - accelerations
     # ================================================================
-    fig2, ax2 = plt.subplots(num=2, clear=True, figsize=(10, 5))
+    fig2, ax2 = plt.subplots(num=cts.fig_num+2, clear=True, figsize=(10, 5))
     ax2.plot(t, ag, '-g',  linewidth=3, label=rf'ground $a_g$')
     ax2.plot(t, A_, '-b',  linewidth=3, label=rf'structure $A$')
     ax2.plot([4, T], [ A_tip,  A_tip], '--', color=co)
@@ -683,7 +688,7 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
     ax2.text(22,  1.1*A_tip, rf'$+A_{{tip}}$ = +{A_tip:5.3f} m/s$^2$', color=co, fontweight='bold')
     ax2.text(22, -1.2*A_tip, rf'$-A_{{tip}}$ = -{A_tip:5.3f} m/s$^2$', color=co, fontweight='bold')
 
-    if cts.anim < 2:
+    if cts.plots < 2:
         plt.pause(0.1) # yield to event loop long enough to flush to screen
         return None
 
@@ -692,7 +697,7 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
     # ================================================================
     Rfixed = R - cts.M * cts.g * D_ / H      # net restoring force (gravity corrected)
     xlims  = [min(np.min(D_), -1.5*Dep), max(np.max(D_), 1.5*Dep)]
-    fig3, ax3 = plt.subplots(num=3, clear=True, figsize=(7, 7))
+    fig3, ax3 = plt.subplots(num=cts.fig_num+3, clear=True, figsize=(7, 7))
     ax3.set_title(
         rf'$K$={K:6.1f} kN/m  $H$={H:4.2f} m  '
         rf'$d$={depth:4.2f} m  $b$={width:4.2f} m  '
@@ -722,7 +727,7 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
     bB0    = block_box(0)
     w0     = wall_x(0)
 
-    fig4, ax4 = plt.subplots(num=4, clear=True, figsize=(7, 7))
+    fig4, ax4 = plt.subplots(num=cts.fig_num+4, clear=True, figsize=(7, 7))
     wallLh, = ax4.plot(w0 - 0.8*w, z_wall, '-k', linewidth=lw)
     wallRh, = ax4.plot(w0 + 0.8*w, z_wall, '-k', linewidth=lw)
     boxGh,  = ax4.plot(box_x(dg[0]),       doff + np.array([+1,-1,-1,+1,+1])*doff,
@@ -842,12 +847,23 @@ def animate( t, dg, ag, x, x_dot, R, v, cts, speed=2 ):
 
 ############################################################################
 if __name__ == '__main__':
-    # run a sample analysis 
+    # run a sample analysis
     import numpy as np
+    from multivarious.utl import StableNamespace
 
-    # example of running the analysis function ... 
+    # example of running the analysis function ...
+    """
+    cts = StableNamespace(
+        g=9.81, M=1.0, E=2.0e8, Sy=250.0e3, k=0.05,
+        wBlk=0.4, hBlk=1.2,
+        PGA=3.5, fg=1.5, zg=0.9, aa=4.0, tau=2.0,
+        phi_C=1.0, phi_D=1.0,
+        randomize_demands = True,
+        seed = None,
+        plots = 2,
+    )
+    """
     cts = default_constants()
-    # override demo values (keep full StableNamespace from default_constants)
     cts.g = 9.81
     cts.M = 1.0
     cts.E = 2.0e8
@@ -857,16 +873,15 @@ if __name__ == '__main__':
     cts.hBlk = 1.2
     cts.PGA = 3.5
     cts.fg = 1.5
-    cts.zg = 0.9
+    cts.zg=  0.9
     cts.aa = 4.0
     cts.tau = 2.0
     cts.phi_C = 1.0
     cts.phi_D = 1.0
     cts.randomize_demands = True
     cts.seed = None
-    cts.anim = 2
-    cts.l = 0.5 * np.sqrt(cts.wBlk**2 + cts.hBlk**2)
-    cts.alpha = np.arctan(cts.wBlk / cts.hBlk)
+    cts.plots = 2
+
     # design variables K (kN/m), Fult (kN), H (m)
     v = np.array([  500.0,     20.0,       3.0 ])  
     cost, constraints = analysis(v, cts)
